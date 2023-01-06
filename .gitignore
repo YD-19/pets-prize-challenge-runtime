@@ -1,6 +1,6 @@
 data/
 submission/
-submission_src/
+# submission_src/
 run_finecrime.sh
 run_pandemic.sh
 
