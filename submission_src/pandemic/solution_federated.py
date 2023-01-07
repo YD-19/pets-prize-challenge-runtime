@@ -116,35 +116,6 @@ class TrainStrategy(fl.server.strategy.Strategy):
         self.server_dir = server_dir
         super().__init__()
 
-        # Add additional arguments below
-        self.parameters_for_client = []
-        self.ids_for_client = []
-        self.parameters_for_server = [] # to N and update
-        self.maximum_servers = 2
-    
-    def Laplacian_Matrix(self, NUM_AGENTS, topology='Ring'):
-        if topology == 'No':
-            L = np.eye(NUM_AGENTS)
-
-        if topology == 'Ring':
-            L = 0.5 * np.eye(NUM_AGENTS) + 0.25 * np.eye(NUM_AGENTS, k=1) + 0.25 * np.eye(NUM_AGENTS,
-                                                                                          k=-1) + 0.25 * np.eye(
-                NUM_AGENTS, k=NUM_AGENTS - 1) + 0.25 * np.eye(NUM_AGENTS, k=-NUM_AGENTS + 1)
-
-        if topology == 'Full':
-            A = np.ones([NUM_AGENTS, NUM_AGENTS]) - np.eye(NUM_AGENTS)
-            L = (A + sum(A[0]) * np.eye(NUM_AGENTS)) / sum(A + sum(A[0]) * np.eye(NUM_AGENTS))
-
-        if topology == 'MS':
-            A = np.random.randint(2, size=NUM_AGENTS * NUM_AGENTS)
-            A = (np.ones([NUM_AGENTS, NUM_AGENTS]) - np.eye(NUM_AGENTS)) * A.reshape([NUM_AGENTS, NUM_AGENTS])
-            vec = A + np.diag(A.sum(axis=1))
-            zero_id = np.where(vec.sum(axis=1) == 0)
-            for k in range(len(zero_id[0])):
-                vec[zero_id[0][k]][zero_id[0][k]] = 1
-            L = vec / vec.sum(axis=1).reshape(-1, 1)
-        return L
-
     def initialize_parameters(self, client_manager: ClientManager) -> Parameters:
         """Do nothing. Return empty Flower Parameters dataclass."""
         return fl.common.ndarrays_to_parameters([])
@@ -163,21 +134,10 @@ class TrainStrategy(fl.server.strategy.Strategy):
     def aggregate_fit(
         self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures
     ) -> Tuple[Optional[Parameters], dict]:
-        if not results:
-            return None, {}
-        # Do not aggregate if there are failures and failures are not accepted
-        if not self.accept_failures and failures:
-            return None, {}
-
         """Aggregate fit results by summing the numerator and denominator of beta
         estimates."""
         if len(failures) > 0:
             raise Exception(f"Client fit round had {len(failures)} failures.")
-
-        list_client_id = []
-        for i in range(len(results)):
-            list_client_id.append(results[i][0])
-        self.ids_for_client = list_client_id
 
         # results is List[Tuple[ClientProxy, FitRes]]
         # convert FitRes to List[np.ndarray]
@@ -194,30 +154,14 @@ class TrainStrategy(fl.server.strategy.Strategy):
         )
 
         # aggregate by summing running numerator and denominator sums
-        # numerator = sum(client_numerators)
-        # denominator = sum(client_denominators)
-
-        # split weight (of clients) for each server
-        weights_results_foreach_subserver = self.split_weight_result(client_parameters_list_of_ndarrays, self.maximum_servers)
-
-        # aggregate parameters
-        for i in range(len(weights_results_foreach_subserver)):
-            parameters_aggregated_centroid = ndarrays_to_parameters(self.aggregate(weights_results_foreach_subserver[i])) # picked summed parameters
-            self.parameters_for_server.append(parameters_aggregated_centroid)
-
-        # Post process parameter list
-        if len(self.parameters_for_client) != 0:
-            for i in range(len(self.parameters_for_client)):
-                self.parameters_for_client[i] = ndarrays_to_parameters(self.parameters_for_client[i])
+        numerator = sum(client_numerators)
+        denominator = sum(client_denominators)
 
         # convert back to List[np.ndarray] then Parameters dataclass to send to clients
-        # parameters = fl.common.ndarrays_to_parameters(
-        #     to_parameters_ndarrays(numerator=numerator, denominator=denominator)
-        # )
-        parameters_aggregated_all_servers = self.aggregate_among_server(self.parameters_for_server)
-        self.parameters_for_server = []
-        return parameters_aggregated_all_servers, {}
-        # return parameters, {}
+        parameters = fl.common.ndarrays_to_parameters(
+            to_parameters_ndarrays(numerator=numerator, denominator=denominator)
+        )
+        return parameters, {}
 
     def configure_evaluate(self, server_round: int, parameters, client_manager):
         """Do nothing. Return empty list."""
