@@ -5,18 +5,6 @@ import flwr as fl
 from flwr.common import EvaluateIns, FitIns, FitRes, Parameters
 from flwr.server import ClientManager
 from flwr.server.client_proxy import ClientProxy
-from flwr.common import (
-    EvaluateIns,
-    EvaluateRes,
-    FitIns,
-    FitRes,
-    MetricsAggregationFn,
-    NDArrays,
-    Parameters,
-    Scalar,
-    ndarrays_to_parameters,
-    parameters_to_ndarrays,
-)
 from loguru import logger
 import numpy as np
 import pandas as pd
@@ -128,106 +116,6 @@ class TrainStrategy(fl.server.strategy.Strategy):
         self.server_dir = server_dir
         super().__init__()
 
-        # Add additional arguments below
-        self.parameters_for_client = []
-        self.ids_for_client = []
-        self.parameters_for_server = [] # to N and update
-        self.maximum_servers = 2
-    
-    def Laplacian_Matrix(self, NUM_AGENTS, topology='Ring'):
-        if topology == 'No':
-            L = np.eye(NUM_AGENTS)
-
-        if topology == 'Ring':
-            L = 0.5 * np.eye(NUM_AGENTS) + 0.25 * np.eye(NUM_AGENTS, k=1) + 0.25 * np.eye(NUM_AGENTS,
-                                                                                          k=-1) + 0.25 * np.eye(
-                NUM_AGENTS, k=NUM_AGENTS - 1) + 0.25 * np.eye(NUM_AGENTS, k=-NUM_AGENTS + 1)
-
-        if topology == 'Full':
-            A = np.ones([NUM_AGENTS, NUM_AGENTS]) - np.eye(NUM_AGENTS)
-            L = (A + sum(A[0]) * np.eye(NUM_AGENTS)) / sum(A + sum(A[0]) * np.eye(NUM_AGENTS))
-
-        if topology == 'MS':
-            A = np.random.randint(2, size=NUM_AGENTS * NUM_AGENTS)
-            A = (np.ones([NUM_AGENTS, NUM_AGENTS]) - np.eye(NUM_AGENTS)) * A.reshape([NUM_AGENTS, NUM_AGENTS])
-            vec = A + np.diag(A.sum(axis=1))
-            zero_id = np.where(vec.sum(axis=1) == 0)
-            for k in range(len(zero_id[0])):
-                vec[zero_id[0][k]][zero_id[0][k]] = 1
-            L = vec / vec.sum(axis=1).reshape(-1, 1)
-        return L
-
-    def aggregate(self, results):
-        """Compute weighted average."""
-        # Define (TMP) Laplace Matrix
-        L_support = self.Laplacian_Matrix(len(results),topology='Ring')
-        # I am not sure the weights update law here is right or not. My update law would be X = np.matmul(L,X).
-        # With our update law, After several steps, the value of X would converge to a single value.
-
-        # Create a list of weights, each multiplied by the related number of examples
-        weighted_weights = []
-        for weights in results: # (numerator, denom)
-            support = []
-            for layer in weights:
-                # support.append(layer * num_examples)
-                support.append(layer)
-            weighted_weights.append(support)
-
-        # Compute average weights of each layer
-        # weights_prime: NDArrays = [
-        #     reduce(np.add, layer_updates) / num_examples_total
-        #     for layer_updates in zip(*weighted_weights)
-        # ]
-        weights_prime_list = []
-        for message_id in range(len(results)):
-            weights_prime = []
-            for layer_updates in zip(*weighted_weights): # iterate numer/denom
-                # print(len(layer_updates)) # number of clients
-                accumulate_sum = np.zeros_like(layer_updates[0])
-                for i in range(len(layer_updates)):
-                    accumulate_sum = np.add(accumulate_sum, L_support[message_id, i] * layer_updates[i])
-                # support = reduce(np.add, layer_updates) / num_examples_total
-                # Do we need to divide by num_examples_total if in dl scheme?
-                # support = accumulate_sum / num_examples_total
-                support = accumulate_sum
-                weights_prime.append(support)
-            weights_prime_list.append(weights_prime)
-
-        for i in range(len(weights_prime_list)):
-            self.parameters_for_client.append(weights_prime_list[i])
-
-        # Temporarily choose 0 for global model update, need discuss this later
-        return weights_prime_list[0]
-
-    def aggregate_among_server(self, params):
-        numerator, denominator = 0, 0
-        for param in params:
-            numerator = numerator + param[0]
-            denominator = denominator + param[1]
-        numerator = numerator / len(params)
-        denominator = denominator / len(params)
-        return [numerator, denominator]
-
-    def split_weight_result(self, params, server_num):
-        output = []
-        client_num = len(params)
-        if server_num > client_num:
-            print('server number greater than client number error!')
-            server_num = client_num
-        pre_calc = []
-        for i in range(server_num):
-            pre_calc.append(0)
-        index = 0
-        while index < client_num:
-            pre_calc[index % server_num] += 1
-            index += 1
-        start = 0
-        for i in range(server_num):
-            end = start + pre_calc[i]
-            output.append(params[start:end])
-            start = end
-        return output
-
     def initialize_parameters(self, client_manager: ClientManager) -> Parameters:
         """Do nothing. Return empty Flower Parameters dataclass."""
         return fl.common.ndarrays_to_parameters([])
@@ -241,29 +129,15 @@ class TrainStrategy(fl.server.strategy.Strategy):
         clients = list(client_manager.all().values())
         empty_fit_ins = fl.common.FitIns(fl.common.ndarrays_to_parameters([]), {})
         logger.info(f"...done configuring fit for round {server_round}")
-        
-        self.parameters_for_client = []
-        self.ids_for_client = []
         return [(client, empty_fit_ins) for client in clients]
 
     def aggregate_fit(
         self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures
     ) -> Tuple[Optional[Parameters], dict]:
-        if not results:
-            return None, {}
-        # Do not aggregate if there are failures and failures are not accepted
-        if not self.accept_failures and failures:
-            return None, {}
-
         """Aggregate fit results by summing the numerator and denominator of beta
         estimates."""
         if len(failures) > 0:
             raise Exception(f"Client fit round had {len(failures)} failures.")
-
-        list_client_id = []
-        for i in range(len(results)):
-            list_client_id.append(results[i][0])
-        self.ids_for_client = list_client_id
 
         # results is List[Tuple[ClientProxy, FitRes]]
         # convert FitRes to List[np.ndarray]
@@ -279,37 +153,14 @@ class TrainStrategy(fl.server.strategy.Strategy):
             ]
         )
 
-        client_weights = list(zip(client_numerators, client_denominators))
-
         # aggregate by summing running numerator and denominator sums
-        # numerator = sum(client_numerators)
-        # denominator = sum(client_denominators)
-
-        # split weight (of clients) for each server
-        weights_results_foreach_subserver = self.split_weight_result(client_weights, self.maximum_servers)
-
-        # aggregate parameters
-        for i in range(len(weights_results_foreach_subserver)):
-            # i is the i-th sub server
-            # self.aggregate performs distributed learning and return weight of random client in the subserver
-            # deleted ndarrays_to_parameters, process this later (numerator and denominator)
-            parameters_aggregated_centroid = self.aggregate(weights_results_foreach_subserver[i])
-            self.parameters_for_server.append(parameters_aggregated_centroid)
-
-        # Post process parameter list
-        # if len(self.parameters_for_client) != 0:
-        #     for i in range(len(self.parameters_for_client)):
-        #         self.parameters_for_client[i] = ndarrays_to_parameters(self.parameters_for_client[i])
+        numerator = sum(client_numerators)
+        denominator = sum(client_denominators)
 
         # convert back to List[np.ndarray] then Parameters dataclass to send to clients
-        # parameters = fl.common.ndarrays_to_parameters(
-        #     to_parameters_ndarrays(numerator=numerator, denominator=denominator)
-        # )
-        parameters_aggregated_all_servers = self.aggregate_among_server(self.parameters_for_server)
         parameters = fl.common.ndarrays_to_parameters(
-            to_parameters_ndarrays(numerator=parameters_aggregated_all_servers[0], denominator=parameters_aggregated_all_servers[1])
+            to_parameters_ndarrays(numerator=numerator, denominator=denominator)
         )
-        self.parameters_for_server = []
         return parameters, {}
 
     def configure_evaluate(self, server_round: int, parameters, client_manager):
