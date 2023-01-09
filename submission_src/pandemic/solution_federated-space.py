@@ -252,8 +252,8 @@ class TrainStrategy(fl.server.strategy.Strategy):
         if not results:
             return None, {}
         # Do not aggregate if there are failures and failures are not accepted
-        if not self.accept_failures and failures:
-            return None, {}
+        # if failures:
+        #     return None, {}
 
         """Aggregate fit results by summing the numerator and denominator of beta
         estimates."""
