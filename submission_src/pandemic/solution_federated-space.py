@@ -200,10 +200,13 @@ class TrainStrategy(fl.server.strategy.Strategy):
         return weights_prime_list[0]
 
     def aggregate_among_server(self, params):
-        output = np.zeros_like(parameters_to_ndarrays(params[0]))
+        numerator, denominator = 0, 0
         for param in params:
-            output = np.add(output, parameters_to_ndarrays(param))
-        return ndarrays_to_parameters(output)
+            numerator = numerator + param[0]
+            denominator = denominator + param[1]
+        numerator = numerator / len(params)
+        denominator = denominator / len(params)
+        return [numerator, denominator]
 
     def split_weight_result(self, params, server_num):
         output = []
@@ -238,6 +241,9 @@ class TrainStrategy(fl.server.strategy.Strategy):
         clients = list(client_manager.all().values())
         empty_fit_ins = fl.common.FitIns(fl.common.ndarrays_to_parameters([]), {})
         logger.info(f"...done configuring fit for round {server_round}")
+        
+        self.parameters_for_client = []
+        self.ids_for_client = []
         return [(client, empty_fit_ins) for client in clients]
 
     def aggregate_fit(
@@ -287,22 +293,24 @@ class TrainStrategy(fl.server.strategy.Strategy):
             # i is the i-th sub server
             # self.aggregate performs distributed learning and return weight of random client in the subserver
             # deleted ndarrays_to_parameters, process this later (numerator and denominator)
-            parameters_aggregated_centroid = self.aggregate(weights_results_foreach_subserver[i]) # picked summed parameters
+            parameters_aggregated_centroid = self.aggregate(weights_results_foreach_subserver[i])
             self.parameters_for_server.append(parameters_aggregated_centroid)
 
         # Post process parameter list
-        if len(self.parameters_for_client) != 0:
-            for i in range(len(self.parameters_for_client)):
-                self.parameters_for_client[i] = ndarrays_to_parameters(self.parameters_for_client[i])
+        # if len(self.parameters_for_client) != 0:
+        #     for i in range(len(self.parameters_for_client)):
+        #         self.parameters_for_client[i] = ndarrays_to_parameters(self.parameters_for_client[i])
 
         # convert back to List[np.ndarray] then Parameters dataclass to send to clients
         # parameters = fl.common.ndarrays_to_parameters(
         #     to_parameters_ndarrays(numerator=numerator, denominator=denominator)
         # )
         parameters_aggregated_all_servers = self.aggregate_among_server(self.parameters_for_server)
+        parameters = fl.common.ndarrays_to_parameters(
+            to_parameters_ndarrays(numerator=parameters_aggregated_all_servers[0], denominator=parameters_aggregated_all_servers[1])
+        )
         self.parameters_for_server = []
-        return parameters_aggregated_all_servers, {}
-        # return parameters, {}
+        return parameters, {}
 
     def configure_evaluate(self, server_round: int, parameters, client_manager):
         """Do nothing. Return empty list."""
