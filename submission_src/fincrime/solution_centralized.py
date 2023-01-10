@@ -41,7 +41,6 @@ def fit(swift_data_path: Path, bank_data_path: Path, model_dir: Path):
     bank_model.fit(bank_trainset)
 
     logger.info("...done fitting")
-
     swift_model.save(model_dir / "swift_model.pt")
     bank_model.save(model_dir / "bank_model.pt")
 
