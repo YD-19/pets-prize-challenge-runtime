@@ -27,31 +27,23 @@ def fit(swift_data_path: Path, bank_data_path: Path, model_dir: Path):
         bank_df=bank_df,
     )
 
-    swift_trainset,swift_testset = swiftdataprocessing(swift_df)
-    bank_trainset,bank_testset = bankdataprocessing(swift_df)
+    swift_trainset, swift_testset = swiftdataprocessing(swift_df)
+    bank_trainset, bank_testset = bankdataprocessing(swift_df)
 
     # Train SWIFT model
     logger.info("Fitting SWIFT model...")
-    # swift_model = SwiftModel()
     swift_model = SwiftNet()
-    # swift_model.summary()
-    # x_swift = sc.fit_transform()
-    # swift_model.fit(X=swift_df[["InstructedCurrency"]], y=swift_df["Label"])
     swift_model.fit(swift_trainset)
-    # Train Bank model
+
+     # Train BANK model
     logger.info("Fitting Bank model...")
-    # bank_model = BankModel()
     bank_model = BankNet()
-    # x_bank = sc.fit_transform()
-    # bank_model.fit(X=swift_df[["BeneficiaryFlags"]], y=swift_df["Label"])
     bank_model.fit(bank_trainset)
 
     logger.info("...done fitting")
 
     swift_model.save(model_dir / "swift_model.pt")
     bank_model.save(model_dir / "bank_model.pt")
-    # bank_model.load(model_dir / "bank_model.pt")
-    swift_df.to_csv('/code_execution/datamap.csv')
 
 
 def predict(
@@ -70,12 +62,10 @@ def predict(
         swift_df=swift_df,
         bank_df=bank_df,
     )
-    swift_trainset,swift_testset = swiftdataprocessing(swift_df)
-    bank_trainset,bank_testset = bankdataprocessing(swift_df)
+    swift_trainset, swift_testset = swiftdataprocessing(swift_df)
+    bank_trainset, bank_testset = bankdataprocessing(swift_df)
     
     logger.info("Loading models...")
-    # swift_model = SwiftModel.load(model_dir / "swift_model.joblib")
-    # bank_model = SwiftModel.load(model_dir / "bank_model.joblib")
     swift_model = SwiftNet()
     swift_model.load(model_dir / "swift_model.pt")
     bank_model = BankNet()

@@ -83,6 +83,7 @@ def add_finalreceiver_col(swift_data: pd.DataFrame):
 #         .set_index("MessageId")
 #     )
 #     return swift_df
+
 def join_flags_to_swift_data(swift_df: pd.DataFrame, bank_df: pd.DataFrame):
     """Join BeneficiaryFlags columns onto SWIFT dataset."""
     # Join beneficiary account flags
@@ -126,6 +127,7 @@ def Fullfill(x):
         return float(0)
     else:
         return float(x)
+
 def bankdataprocessing(swift_df_):
     swift_df = swift_df_.copy()
     feature_name = ["Name","Account","Street","CountryCityZip"]
@@ -196,6 +198,7 @@ class SwiftNet():
         print(self.device)
         self.train_loss_list=[]
         self.test_loss_list=[]
+
     def train(self, train_loader):
         self.net.train()
         step = 0
@@ -216,9 +219,10 @@ class SwiftNet():
             # if (step % 10 == 0):
             #     print("step{},loss:{}".format(step, loss))
             # step += 1
-        epoch_loss = train_loss /nums
+        epoch_loss = train_loss / nums
         self.train_loss_list.append(epoch_loss)
         return epoch_loss
+
     def predict(self, swift_df_):
         swift_df = swift_df_.copy()
         feature_name = ["InstructedAmount","SettlementAmount","SettlementCurrency","InstructedCurrency"]
@@ -253,6 +257,7 @@ class SwiftNet():
                 y_total.append(elem)
         self.test_loss_list.append(test_loss/nums)
         return pd.Series(y_total, index=swift_df_.index)
+
     def fit(self,train_date):
         for epoch in range(self.epochs):
             # print("{}epoch".format(epoch + 1))
@@ -288,6 +293,7 @@ class BankNet():
         print(self.device)
         self.train_loss_list=[]
         self.test_loss_list=[]
+
     def train(self, train_loader):
         self.net.train()
         step = 0
@@ -311,6 +317,7 @@ class BankNet():
         epoch_loss = train_loss /nums
         self.train_loss_list.append(epoch_loss)
         return epoch_loss
+
     def predict(self, swift_df_):
         swift_df = swift_df_.copy()
         feature_name = ["Name","Account","Street","CountryCityZip"]
@@ -346,7 +353,7 @@ class BankNet():
         self.test_loss_list.append(test_loss/nums)
         return pd.Series(y_total, index=swift_df_.index)
 
-    def fit(self,train_date):
+    def fit(self, train_date):
         for epoch in range(self.epochs):
             # print("{}epoch".format(epoch + 1))
             train_loss=self.train(train_date)
