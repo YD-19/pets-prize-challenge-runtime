@@ -3,7 +3,7 @@ submission/
 # submission_src/
 run_finecrime.sh
 run_pandemic.sh
-
+.idea/
 
 ## https://github.com/github/gitignore/blob/main/Python.gitignore
 
