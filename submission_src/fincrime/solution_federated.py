@@ -28,7 +28,7 @@ def empty_parameters() -> Parameters:
 #   - Bank clients tell Strategy which banks are present in each partition
 # round 2:
 #   - Strategy sends labels to banks; banks join flag data and fit
-NUM_ROWS = 2000
+
 
 def swift_df_to_ndarrays(
     swift_df: pd.DataFrame, labels: bool = True
@@ -85,7 +85,6 @@ class TrainingSwiftClient(fl.client.NumPyClient):
         # Fit model
         logger.info(f"{self.cid} : Fitting model...")
         X = self.swift_df[["InstructedCurrency"]]
-        print(X)
         y = self.swift_df["Label"]
         self.model.fit(X, y)
         # Save model checkpoint
@@ -126,7 +125,6 @@ class TrainingBankClient(fl.client.NumPyClient):
             # Fit model
             logger.info(f"{self.cid} : Fitting model...")
             X = swift_df[["BeneficiaryFlags"]]
-            print(X)
             y = swift_df["Label"]
             self.model.fit(X, y)
             # Save model checkpoint
@@ -140,14 +138,14 @@ class TrainingBankClient(fl.client.NumPyClient):
 def train_client_factory(cid, data_path: Path, client_dir: Path):
     if cid == "swift":
         logger.info("Initializing SWIFT client for {}", cid)
-        swift_df = pd.read_csv(data_path, index_col="MessageId",nrows=NUM_ROWS)
+        swift_df = pd.read_csv(data_path, index_col="MessageId")
         model = SwiftModel()
         return TrainingSwiftClient(
             cid, swift_df=swift_df, model=model, client_dir=client_dir
         )
     else:
         logger.info("Initializing bank client for {}", cid)
-        bank_df = pd.read_csv(data_path, dtype=pd.StringDtype(),nrows=NUM_ROWS)
+        bank_df = pd.read_csv(data_path, dtype=pd.StringDtype())
         model = BankModel()
         return TrainingBankClient(
             cid, bank_df=bank_df, model=model, client_dir=client_dir
@@ -260,7 +258,7 @@ def test_client_factory(
 ):
     if cid == "swift":
         logger.info("Initializing SWIFT client for {}", cid)
-        swift_df = pd.read_csv(data_path, index_col="MessageId",nrows=NUM_ROWS)
+        swift_df = pd.read_csv(data_path, index_col="MessageId")
         return TestSwiftClient(
             cid,
             swift_df=swift_df,
@@ -270,7 +268,7 @@ def test_client_factory(
         )
     else:
         logger.info("Initializing bank client for {}", cid)
-        bank_df = pd.read_csv(data_path, dtype=pd.StringDtype(),nrows=NUM_ROWS)
+        bank_df = pd.read_csv(data_path, dtype=pd.StringDtype())
         return TestBankClient(cid, bank_df=bank_df, client_dir=client_dir)
 
 
@@ -312,7 +310,7 @@ class TestSwiftClient(fl.client.NumPyClient):
             # Calculate final predictions
             final_preds = swift_preds * bank_preds
             # Read format, write predictions to destination
-            preds_format_df = pd.read_csv(self.preds_format_path, index_col="MessageId",nrows=NUM_ROWS)
+            preds_format_df = pd.read_csv(self.preds_format_path, index_col="MessageId")
             preds_format_df["Score"] = preds_format_df.index.map(final_preds)
             preds_format_df.to_csv(self.preds_dest_path)
             return [], 0, {}

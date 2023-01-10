@@ -366,7 +366,7 @@ class BankNet():
         # joblib.dump(self.pipeline, path)
 
     # @classmethod
-    def load(self,path):
+    def load(self, path):
         self.net.load_state_dict(torch.load(path))
         self.net.eval()
         print("Bank Model Loaded!")
