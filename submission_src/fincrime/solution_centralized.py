@@ -14,10 +14,11 @@ from .model import *
 from sklearn.preprocessing import StandardScaler
 sc = StandardScaler()
 
+NUM_ROWS = 20000
 
 def fit(swift_data_path: Path, bank_data_path: Path, model_dir: Path):
-    swift_df = pd.read_csv(swift_data_path, index_col="MessageId",nrows=20000)
-    bank_df = pd.read_csv(bank_data_path, dtype=pd.StringDtype(),nrows=20000)
+    swift_df = pd.read_csv(swift_data_path, index_col="MessageId",nrows=NUM_ROWS)
+    bank_df = pd.read_csv(bank_data_path, dtype=pd.StringDtype(),nrows=NUM_ROWS)
 
     logger.info("Preparing train data...")
     swift_df = add_finalreceiver_col(swift_df)
