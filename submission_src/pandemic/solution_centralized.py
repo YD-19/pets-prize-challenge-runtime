@@ -4,6 +4,7 @@ from loguru import logger
 import pandas as pd
 
 from src.sir_model import SirModel
+from src.gnn_model import BatchGCN
 
 NUM_ROW = 2000
 LOOKAHEAD = 7
@@ -20,7 +21,9 @@ def fit(
     model_dir: Path,
 ):
     logger.info("Running fit...")
-    disease_outcome_df = pd.read_csv(disease_outcome_data_path).iloc[0:NUM_ROW]
+    disease_outcome_df = pd.read_csv(disease_outcome_data_path, nrows=NUM_ROW)
+    person_df = pd.read_csv(person_data_path, nrows=NUM_ROW)
+    population_network_df = pd.read_csv(population_network_data_path, nrows=NUM_ROW)
     model = SirModel(lookahead=LOOKAHEAD)
     model.fit(disease_outcome_df)
     logger.info("...done running fit")
